@@ -251,7 +251,7 @@ function viewPlan(){
   if(late.length)h+=`<div class="alert">${late.length} ${late.length===1?'pagesë e vonuar':'pagesa të vonuara'}: ${fmt(late.reduce((s,i)=>s+i.amount,0))}</div>`;
   h+=`<section class="card"><div class="sec"><h2>Plani i pagesave</h2><span class="note">${its.filter(i=>i.paid).length}/${its.length} paguar</span></div>`;
   if(loading)h+=`<div class="empty">Duke ngarkuar…</div>`;
-  else if(!its.length)h+=`<div class="empty"><b>Asnjë detyrim ende</b>Shto llogaritë e dritave dhe ujit, punëtorët dhe shpenzimet e tjera. Plani mujor ndërtohet vetë.<div class="btnrow" style="margin-top:12px"><button class="btn sm" data-a="newacc" data-v="drita">+ Drita</button><button class="btn sm" data-a="newacc" data-v="uje">+ Ujë</button><button class="btn sm" data-a="newwrk">+ Punëtor</button><button class="btn sm" data-a="newrent">+ Qira</button></div></div>`;
+  else if(!its.length)h+=`<div class="empty"><b>Asnjë detyrim ende</b>Shto llogaritë e dritave dhe ujit, punëtorët dhe shpenzimet e tjera. Plani mujor ndërtohet vetë.<div class="btnrow" style="margin-top:12px"><button class="btn sm" data-a="newacc" data-v="drita">+ Drita</button><button class="btn sm" data-a="newacc" data-v="uje">+ Ujë</button><button class="btn sm" data-a="newwrk">+ Punëtor</button><button class="btn sm" data-a="newrent">+ Qira</button></div><div style="margin-top:14px"><button class="btn ghost" data-a="codeload">Ngarko të dhënat me kod</button></div></div>`;
   else h+=`<div class="list">${its.map(itemRow).join('')}</div><p class="note" style="margin:10px 0 0">Prek shumën për ta ndryshuar vetëm për këtë muaj (p.sh. sipas faturës). Shumat me “vlerësim” vijnë nga mesatarja.</p>`;
   h+=`</section>`;
   // projection
@@ -443,6 +443,7 @@ loadLocal();render();
 function backupSheet(){
   openSheet(()=>head('Kopja rezervë','Të dhënat ruhen vetëm në këtë telefon. Bëj kopje herë pas here.')+`
   <div class="card stack"><h2>Ruaj kopjen</h2><p class="note" style="margin:0">Kopjon të gjitha të dhënat si tekst. Ngjite te Shënimet (Notes) ose dërgoja vetes me email.</p><button class="btn" data-a="exp-copy">Kopjo të dhënat</button><button class="btn ghost" data-a="exp-file">Ruaj si skedar</button></div>
+  <button class="btn ghost" data-a="codeload">Ngarko të dhënat me kod</button>
   <div class="card stack"><h2>Ngarko një kopje</h2><p class="note" style="margin:0">Zgjidh skedarin e kopjes (p.sh. pagesat-kopje.json) ose ngjit tekstin. Të dhënat e tanishme zëvendësohen.</p>
   <input type="file" id="f_imp" accept=".json,application/json,text/plain"><textarea id="f_imptxt" placeholder="…ose ngjit tekstin e kopjes këtu"></textarea><button class="btn" data-a="imp-txt">Ngarko tekstin</button></div>`);
 }
@@ -462,6 +463,19 @@ document.addEventListener('click',e=>{
   if(a==='imp-txt'){const t=document.getElementById('f_imptxt').value.trim();if(t)doImport(t);else toast('Ngjit fillimisht tekstin e kopjes.')}
 });
 document.addEventListener('change',e=>{if(e.target.id==='f_imp'&&e.target.files[0]){const r=new FileReader();r.onload=()=>doImport(r.result);r.readAsText(e.target.files[0])}});
+
+function codeSheet(){openSheet(()=>head('Ngarko të dhënat','Shkruaj kodin që të dha Claude.')+`<form id="codeform" class="stack"><div class="field"><label for="f_code">Kodi</label><input id="f_code" name="code" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="p.sh. fjale-fjale-fjale-1234"></div><button class="btn" type="submit">Ngarko</button><p class="note" id="codemsg" style="margin:0"></p></form>`)}
+async function loadWithCode(code){
+  const msg=document.getElementById('codemsg');if(msg)msg.textContent='Duke ngarkuar…';
+  try{const r=await fetch('te-dhenat.enc.json',{cache:'no-store'});const j=await r.json();
+    const u=x=>Uint8Array.from(atob(x),ch=>ch.charCodeAt(0));
+    const k0=await crypto.subtle.importKey('raw',new TextEncoder().encode(code.trim().toLowerCase()),'PBKDF2',false,['deriveKey']);
+    const k=await crypto.subtle.deriveKey({name:'PBKDF2',salt:u(j.s),iterations:600000,hash:'SHA-256'},k0,{name:'AES-GCM',length:256},false,['decrypt']);
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:u(j.i)},k,u(j.c));doImport(new TextDecoder().decode(pt));
+  }catch(e){if(msg)msg.textContent=navigator.onLine===false?'Duhet internet për këtë hap.':'Kodi nuk është i saktë. Kontrollo vizat dhe numrat.'}
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a="codeload"]');if(b)codeSheet()});
+document.addEventListener('submit',e=>{if(e.target.id==='codeform'){e.preventDefault();loadWithCode(e.target.elements.code.value)}});
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 
 </script>
